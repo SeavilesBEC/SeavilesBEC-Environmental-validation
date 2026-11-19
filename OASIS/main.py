@@ -11,7 +11,7 @@ FASES:
 from datetime import datetime
 import pandas as pd
 
-from config.config import crear_estructura, DATOS_SALIDA
+from OASIS.config.config import crear_estructura, DATOS_SALIDA
 from src.ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
 from src.validadorAmbiental import ejecutar_validacion_historico
 from src.exportadorValidacion import exportar_cuaderno_revision
