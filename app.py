@@ -1,0 +1,161 @@
+import sys
+from pathlib import Path
+import io
+import pandas as pd
+import streamlit as st
+
+# Asegurar que Python encuentre los módulos en la misma carpeta que app.py
+RUTA_ACTUAL = Path(__file__).resolve().parent
+if str(RUTA_ACTUAL) not in sys.path:
+    sys.path.append(str(RUTA_ACTUAL))
+
+# Importación de los módulos del backend
+from config import DATOS_SALIDA
+from ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
+from validadorAmbiental import ejecutar_validacion_historico
+from exportadorValidacion import exportar_cuaderno_revision  # Ajusta si tu archivo tiene otro nombre exacto
+
+# ==========================================
+# CONFIGURACIÓN DE PÁGINA (AURA)
+# ==========================================
+st.set_page_config(
+    page_title="AURA | Auditoría Rápida Ambiental",
+    page_icon="🌿",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Cabecera corporativa
+st.title("🌿 AURA — Auditoría Rápida Ambiental")
+st.markdown("**ACCIONA Concesiones** | Sistema de Pre-validación y Trazabilidad ESG antes de consolidación en Enablon")
+st.divider()
+
+# ==========================================
+# PANEL LATERAL: ORQUESTADOR DE PROCESOS
+# ==========================================
+st.sidebar.header("⚙️ Panel de Control AURA")
+st.sidebar.markdown("Ejecuta el flujo completo de ingesta desde Minerva, actualización de histórico y control de calidad.")
+
+if st.sidebar.button("🚀 Ejecutar Nueva Validación", type="primary", use_container_width=True):
+    with st.spinner("Ejecutando pipeline completo en AURA (Ingesta, Histórico y Motor de Reglas)..."):
+        try:
+            # 1. Ingesta y normalización desde Minerva
+            df_datos, df_emisiones = cargar_datos()
+            
+            if not df_datos.empty:
+                procesar_datos_completos(df_datos)
+            if not df_emisiones.empty:
+                procesar_emisiones(df_emisiones)
+            
+            # 2. Ejecución del motor de control (CR001 - CR006)
+            df_revisiones = ejecutar_validacion_historico()
+            
+            # 3. Exportación automática del cuaderno Excel corporativo
+            if not df_revisiones.empty:
+                DATOS_SALIDA.mkdir(parents=True, exist_ok=True)
+                ruta_excel = DATOS_SALIDA / "VALIDACION_AMBIENTAL.xlsx"
+                exportar_cuaderno_revision(df_revisiones, ruta_salida=ruta_excel)
+            
+            # Guardar estado en memoria para interacción inmediata
+            st.session_state['df_revisiones'] = df_revisiones
+            st.sidebar.success("✅ Validación completada con éxito.")
+            
+        except Exception as e:
+            st.sidebar.error(f"❌ Error crítico en el flujo: {e}")
+
+# Cargar automáticamente el último resultado guardado si existe y aún no se ha pulsado el botón
+if 'df_revisiones' not in st.session_state:
+    ruta_excel_previo = DATOS_SALIDA / "VALIDACION_AMBIENTAL.xlsx"
+    if ruta_excel_previo.exists():
+        try:
+            st.session_state['df_revisiones'] = pd.read_excel(ruta_excel_previo)
+        except Exception:
+            st.session_state['df_revisiones'] = pd.DataFrame()
+    else:
+        st.session_state['df_revisiones'] = pd.DataFrame()
+
+df_actual = st.session_state['df_revisiones']
+
+# ==========================================
+# INTERFAZ PRINCIPAL Y REVISIÓN HUMANA
+# ==========================================
+if df_actual.empty:
+    st.info("👋 Bienvenido a **AURA**. No hay hallazgos pendientes de revisión o aún no has ejecutado el análisis. Pulsa **'🚀 Ejecutar Nueva Validación'** en el menú lateral para procesar los datos de Minerva.")
+else:
+    # --- Filtros dinámicos en barra lateral ---
+    st.sidebar.divider()
+    st.sidebar.subheader("🔍 Filtros de Revisión")
+    
+    # Filtro por Severidad / Criticidad (si existe la columna)
+    col_severidad = next((c for c in df_actual.columns if 'severidad' in c.lower() or 'criticidad' in c.lower()), None)
+    if col_severidad:
+        opciones_sev = sorted(df_actual[col_severidad].dropna().unique().tolist())
+        sel_sev = st.sidebar.multiselect("Nivel de Severidad", opciones_sev, default=opciones_sev)
+        df_filtrado = df_actual[df_actual[col_severidad].isin(sel_sev)]
+    else:
+        df_filtrado = df_actual.copy()
+
+    # Filtro por Centro / Concesión
+    col_centro = next((c for c in df_actual.columns if 'centro' in c.lower() or 'concesion' in c.lower()), None)
+    if col_centro:
+        opciones_centro = sorted(df_filtrado[col_centro].dropna().unique().tolist())
+        sel_centro = st.sidebar.multiselect("Activo / Centro", opciones_centro, default=opciones_centro)
+        df_filtrado = df_filtrado[df_filtrado[col_centro].isin(sel_centro)]
+
+    # Filtro por Regla (CR001 - CR006)
+    col_regla = next((c for c in df_actual.columns if 'regla' in c.lower() or 'codigo' in c.lower()), None)
+    if col_regla:
+        opciones_regla = sorted(df_filtrado[col_regla].dropna().unique().tolist())
+        sel_regla = st.sidebar.multiselect("Regla de Control", opciones_regla, default=opciones_regla)
+        df_filtrado = df_filtrado[df_filtrado[col_regla].isin(sel_regla)]
+
+    # --- KPIs Resumen ---
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Hallazgos Detectados", len(df_filtrado))
+    
+    if col_centro:
+        col2.metric("Activos con Incidencias", df_filtrado[col_centro].nunique())
+    if col_regla:
+        col3.metric("Reglas Activadas", df_filtrado[col_regla].nunique())
+
+    st.subheader("📋 Cuaderno de Revisión Ambiental")
+    st.caption("Puedes editar directamente las columnas de validación o comentarios en la tabla antes de exportar el reporte final.")
+
+    # Añadimos columnas de trazabilidad humana si no existen
+    if "Estado_Revision" not in df_filtrado.columns:
+        df_filtrado["Estado_Revision"] = "Pendiente"
+    if "Comentarios_Gestor" not in df_filtrado.columns:
+        df_filtrado["Comentarios_Gestor"] = ""
+
+    # Tabla interactiva editable
+    df_editado = st.data_editor(
+        df_filtrado,
+        use_container_width=True,
+        num_rows="fixed",
+        column_config={
+            "Estado_Revision": st.column_config.SelectboxColumn(
+                "Estado de Revisión",
+                help="Selecciona el dictamen tras revisar el dato",
+                options=["Pendiente", "Validado (OK)", "Falso Positivo", "Corregir en Minerva"],
+                required=True,
+            ),
+            "Comentarios_Gestor": st.column_config.TextColumn(
+                "Comentarios / Justificación ESG",
+                help="Añade trazabilidad para auditoría interna"
+            )
+        }
+    )
+
+    # --- Botón de Descarga del Excel Revisado ---
+    st.divider()
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df_editado.to_excel(writer, index=False, sheet_name='Validacion_AURA')
+    
+    st.download_button(
+        label="📥 Descargar Cuaderno Validado (.xlsx)",
+        data=buffer.getvalue(),
+        file_name="AURA_Validacion_ESG_Consolidada.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary"
+    )
