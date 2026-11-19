@@ -8,21 +8,25 @@ import io
 import pandas as pd
 import streamlit as st
 
-# Añadir la carpeta superior al path para que encuentre 'config' y 'src'
-RUTA_ACTUAL = Path(__file__).resolve().parent      # Carpeta OASIS                # Carpeta superior
-SRC_PATH = RUTA_ACTUAL / "src"
-
-# Rutas base
+# ==========================================
+# GESTIÓN DE RUTAS Y CONFIGURACIÓN
+# ==========================================
 RUTA_ACTUAL = Path(__file__).resolve().parent
 SRC_PATH = RUTA_ACTUAL / "src"
+
 if str(SRC_PATH) not in sys.path:
     sys.path.append(str(SRC_PATH))
 
-# Importación correcta desde la carpeta config y src
-from config.config import DATOS_SALIDA  # Ajusta si tu archivo dentro de la carpeta se llama diferente
+# Importación limpia y directa (asumiendo que config.py está en la carpeta config con __init__.py)
+try:
+    from config import DATOS_SALIDA
+except ImportError:
+    from config.config import DATOS_SALIDA
+
 from src.ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
 from src.validadorAmbiental import ejecutar_validacion_historico
 from src.exportadorValidacion import exportar_cuaderno_revision
+
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA (OASIS)
 # ==========================================
@@ -39,39 +43,8 @@ st.markdown("**ACCIONA Concesiones** | Sistema de Pre-validación y Trazabilidad
 st.divider()
 
 # ==========================================
-# PANEL LATERAL: ORQUESTADOR DE PROCESOS
+# INICIALIZACIÓN DE ESTADO
 # ==========================================
-st.sidebar.header("⚙️ Panel de Control OASIS")
-st.sidebar.markdown("Ejecuta el flujo completo de ingesta desde Minerva, actualización de histórico y control de calidad.")
-
-if st.sidebar.button("🚀 Ejecutar Nueva Validación", type="primary", use_container_width=True):
-    with st.spinner("Ejecutando pipeline completo en OASIS (Ingesta, Histórico y Motor de Reglas)..."):
-        try:
-            # 1. Ingesta y normalización desde Minerva
-            df_datos, df_emisiones = cargar_datos()
-            
-            if not df_datos.empty:
-                procesar_datos_completos(df_datos)
-            if not df_emisiones.empty:
-                procesar_emisiones(df_emisiones)
-            
-            # 2. Ejecución del motor de control (CR001 - CR006)
-            df_revisiones = ejecutar_validacion_historico()
-            
-            # 3. Exportación automática del cuaderno Excel corporativo
-            if not df_revisiones.empty:
-                DATOS_SALIDA.mkdir(parents=True, exist_ok=True)
-                ruta_excel = DATOS_SALIDA / "VALIDACION_AMBIENTAL.xlsx"
-                exportar_cuaderno_revision(df_revisiones, ruta_salida=ruta_excel)
-            
-            # Guardar estado en memoria para interacción inmediata
-            st.session_state['df_revisiones'] = df_revisiones
-            st.sidebar.success("✅ Validación completada con éxito.")
-            
-        except Exception as e:
-            st.sidebar.error(f"❌ Error crítico en el flujo: {e}")
-
-# Cargar automáticamente el último resultado guardado si existe y aún no se ha pulsado el botón
 if 'df_revisiones' not in st.session_state:
     ruta_excel_previo = DATOS_SALIDA / "VALIDACION_AMBIENTAL.xlsx"
     if ruta_excel_previo.exists():
@@ -81,6 +54,46 @@ if 'df_revisiones' not in st.session_state:
             st.session_state['df_revisiones'] = pd.DataFrame()
     else:
         st.session_state['df_revisiones'] = pd.DataFrame()
+
+# ==========================================
+# PANEL LATERAL: ORQUESTADOR DE PROCESOS
+# ==========================================
+st.sidebar.header("⚙️ Panel de Control OASIS")
+st.sidebar.markdown("Ejecuta el flujo completo de ingesta desde Minerva, actualización de histórico y control de calidad.")
+
+if st.sidebar.button("🚀 Ejecutar Nueva Validación", type="primary", use_container_width=True):
+    with st.spinner("Ejecutando pipeline completo en OASIS (Ingesta, Histórico y Motor de Reglas)..."):
+        try:
+            print("[OASIS] Iniciando proceso de ingesta...")
+            # 1. Ingesta y normalización desde Minerva
+            df_datos, df_emisiones = cargar_datos()
+            
+            if not df_datos.empty:
+                print(f"[OASIS] Procesando {len(df_datos)} registros de datos completos...")
+                procesar_datos_completos(df_datos)
+            if not df_emisiones.empty:
+                print(f"[OASIS] Procesando {len(df_emisiones)} registros de emisiones...")
+                procesar_emisiones(df_emisiones)
+            
+            print("[OASIS] Ejecutando motor de control y reglas...")
+            # 2. Ejecución del motor de control (CR001 - CR006)
+            df_revisiones = ejecutar_validacion_historico()
+            
+            print(f"[OASIS] Revisiones generadas: {len(df_revisiones)}")
+            # 3. Exportación automática del cuaderno Excel corporativo
+            if not df_revisiones.empty:
+                DATOS_SALIDA.mkdir(parents=True, exist_ok=True)
+                ruta_excel = DATOS_SALIDA / "VALIDACION_AMBIENTAL.xlsx"
+                exportar_cuaderno_revision(df_revisiones, ruta_salida=ruta_excel)
+            
+            # Guardar estado en memoria para interacción inmediata
+            st.session_state['df_revisiones'] = df_revisiones
+            st.sidebar.success("✅ Validación completada con éxito.")
+            st.rerun()  # Forzar actualización visual inmediata en Streamlit
+            
+        except Exception as e:
+            print(f"[OASIS ERROR] {e}")
+            st.sidebar.error(f"❌ Error crítico en el flujo: {e}")
 
 df_actual = st.session_state['df_revisiones']
 
