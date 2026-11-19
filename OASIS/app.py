@@ -10,7 +10,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from OASIS.config import (
+from config import (
     APP_TITLE,
     APP_SUBTITLE,
     DATOS_SALIDA
