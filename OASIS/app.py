@@ -1,43 +1,48 @@
+"""
+app.py
+Interfaz gráfica de usuario de OASIS usando Streamlit.
+"""
 import sys
 from pathlib import Path
 import io
 import pandas as pd
 import streamlit as st
 
-# Asegurar que Python encuentre los módulos en la misma carpeta que app.py
+# Asegurar que Python encuentre la raíz y la carpeta src en el path
 RUTA_ACTUAL = Path(__file__).resolve().parent
-if str(RUTA_ACTUAL) not in sys.path:
-    sys.path.append(str(RUTA_ACTUAL))
+SRC_PATH = RUTA_ACTUAL / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.append(str(SRC_PATH))
 
-# Importación de los módulos del backend
+# Importación de la configuración y módulos desde src
 from config import DATOS_SALIDA
-from ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
-from validadorAmbiental import ejecutar_validacion_historico
-from exportadorValidacion import exportar_cuaderno_revision  # Ajusta si tu archivo tiene otro nombre exacto
+from src.ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
+from src.validadorAmbiental import ejecutar_validacion_historico
+from src.exportadorValidacion import exportar_cuaderno_revision
 
 # ==========================================
-# CONFIGURACIÓN DE PÁGINA (AURA)
+# CONFIGURACIÓN DE PÁGINA (OASIS)
 # ==========================================
 st.set_page_config(
-    page_title="AURA | Auditoría Rápida Ambiental",
+    page_title="OASIS | Auditoría Rápida Ambiental",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Cabecera corporativa
-st.title("🌿 AURA — Auditoría Rápida Ambiental")
+st.title("🌿 OASIS — Auditoría Rápida Ambiental")
 st.markdown("**ACCIONA Concesiones** | Sistema de Pre-validación y Trazabilidad ESG antes de consolidación en Enablon")
 st.divider()
 
 # ==========================================
 # PANEL LATERAL: ORQUESTADOR DE PROCESOS
 # ==========================================
-st.sidebar.header("⚙️ Panel de Control AURA")
+st.sidebar.header("⚙️ Panel de Control OASIS")
 st.sidebar.markdown("Ejecuta el flujo completo de ingesta desde Minerva, actualización de histórico y control de calidad.")
 
 if st.sidebar.button("🚀 Ejecutar Nueva Validación", type="primary", use_container_width=True):
-    with st.spinner("Ejecutando pipeline completo en AURA (Ingesta, Histórico y Motor de Reglas)..."):
+    with st.spinner("Ejecutando pipeline completo en OASIS (Ingesta, Histórico y Motor de Reglas)..."):
         try:
             # 1. Ingesta y normalización desde Minerva
             df_datos, df_emisiones = cargar_datos()
@@ -80,27 +85,20 @@ df_actual = st.session_state['df_revisiones']
 # INTERFAZ PRINCIPAL Y REVISIÓN HUMANA
 # ==========================================
 if df_actual.empty:
-    st.info("👋 Bienvenido a **AURA**. No hay hallazgos pendientes de revisión o aún no has ejecutado el análisis. Pulsa **'🚀 Ejecutar Nueva Validación'** en el menú lateral para procesar los datos de Minerva.")
+    st.info("👋 Bienvenido a **OASIS**. No hay hallazgos pendientes de revisión o aún no has ejecutado el análisis. Pulsa **'🚀 Ejecutar Nueva Validación'** en el menú lateral para procesar los datos de Minerva.")
 else:
     # --- Filtros dinámicos en barra lateral ---
     st.sidebar.divider()
     st.sidebar.subheader("🔍 Filtros de Revisión")
     
-    # Filtro por Severidad / Criticidad (si existe la columna)
-    col_severidad = next((c for c in df_actual.columns if 'severidad' in c.lower() or 'criticidad' in c.lower()), None)
-    if col_severidad:
-        opciones_sev = sorted(df_actual[col_severidad].dropna().unique().tolist())
-        sel_sev = st.sidebar.multiselect("Nivel de Severidad", opciones_sev, default=opciones_sev)
-        df_filtrado = df_actual[df_actual[col_severidad].isin(sel_sev)]
-    else:
-        df_filtrado = df_actual.copy()
-
     # Filtro por Centro / Concesión
     col_centro = next((c for c in df_actual.columns if 'centro' in c.lower() or 'concesion' in c.lower()), None)
     if col_centro:
-        opciones_centro = sorted(df_filtrado[col_centro].dropna().unique().tolist())
+        opciones_centro = sorted(df_actual[col_centro].dropna().unique().tolist())
         sel_centro = st.sidebar.multiselect("Activo / Centro", opciones_centro, default=opciones_centro)
-        df_filtrado = df_filtrado[df_filtrado[col_centro].isin(sel_centro)]
+        df_filtrado = df_actual[df_actual[col_centro].isin(sel_centro)]
+    else:
+        df_filtrado = df_actual.copy()
 
     # Filtro por Regla (CR001 - CR006)
     col_regla = next((c for c in df_actual.columns if 'regla' in c.lower() or 'codigo' in c.lower()), None)
@@ -150,12 +148,12 @@ else:
     st.divider()
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_editado.to_excel(writer, index=False, sheet_name='Validacion_AURA')
+        df_editado.to_excel(writer, index=False, sheet_name='Validacion_OASIS')
     
     st.download_button(
         label="📥 Descargar Cuaderno Validado (.xlsx)",
         data=buffer.getvalue(),
-        file_name="AURA_Validacion_ESG_Consolidada.xlsx",
+        file_name="OASIS_Validacion_ESG_Consolidada.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary"
     )

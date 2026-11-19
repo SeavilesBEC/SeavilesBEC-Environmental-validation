@@ -11,10 +11,10 @@ FASES:
 from datetime import datetime
 import pandas as pd
 
-from config import crear_estructura, DATOS_SALIDA
-from ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
-from validadorAmbiental import ejecutar_validacion_historico
-from exportadorValidacion import exportar_cuaderno_revision
+from config.config import crear_estructura, DATOS_SALIDA
+from src.ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
+from src.validadorAmbiental import ejecutar_validacion_historico
+from src.exportadorValidacion import exportar_cuaderno_revision
 
 
 def mostrar_cabecera():

@@ -1,0 +1,12 @@
+# Configuración de VS Code
+.vscode/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entornos virtuales y archivos de datos temporales
+venv/
+*.xlsx
+*.csv
