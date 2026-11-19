@@ -5,7 +5,7 @@ Orquestador del motor de validación ambiental.
 from pathlib import Path
 import pandas as pd
 
-from config import DATOS_HISTORICOS
+from OASIS.config import DATOS_HISTORICOS
 from .normalizador import normalizar_datos_completos, normalizar_emisiones
 from .controlDato import ControlDato
 

@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from config import (
+from OASIS.config import (
     crear_estructura,
     DATOS_SALIDA
 )
