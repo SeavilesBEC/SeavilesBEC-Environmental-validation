@@ -9,19 +9,20 @@ import pandas as pd
 import streamlit as st
 
 # Añadir la carpeta superior al path para que encuentre 'config' y 'src'
-RUTA_ACTUAL = Path(__file__).resolve().parent      # Carpeta OASIS
-PARENT_PATH = RUTA_ACTUAL.parent                   # Carpeta superior
+RUTA_ACTUAL = Path(__file__).resolve().parent      # Carpeta OASIS                # Carpeta superior
 SRC_PATH = RUTA_ACTUAL / "src"
 
-for p in [str(PARENT_PATH), str(SRC_PATH), str(RUTA_ACTUAL)]:
-    if p not in sys.path:
-        sys.path.append(p)
+# Rutas base
+RUTA_ACTUAL = Path(__file__).resolve().parent
+SRC_PATH = RUTA_ACTUAL / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.append(str(SRC_PATH))
 
-from config import DATOS_SALIDA
+# Importación correcta desde la carpeta config y src
+from config.config import DATOS_SALIDA  # Ajusta si tu archivo dentro de la carpeta se llama diferente
 from src.ingesta import cargar_datos, procesar_datos_completos, procesar_emisiones
 from src.validadorAmbiental import ejecutar_validacion_historico
 from src.exportadorValidacion import exportar_cuaderno_revision
-
 # ==========================================
 # CONFIGURACIÓN DE PÁGINA (OASIS)
 # ==========================================
